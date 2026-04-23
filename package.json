@@ -1,0 +1,9 @@
+{
+  "name": "stackport",
+  "version": "1.0.0",
+  "description": "Stackport landing page",
+  "scripts": {
+    "dev": "npx serve .",
+    "build": "echo 'Static site - no build needed'"
+  }
+}

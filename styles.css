@@ -5,8 +5,8 @@
 }
 
 :root {
-  --bg: #050505;
-  --text: #ffffff;
+  --bg: #faf9f7;
+  --text: #1a1a1a;
 }
 
 html, body {
@@ -24,22 +24,18 @@ body {
   -webkit-user-select: none;
 }
 
-#grid {
+#watercolor {
   position: fixed;
   inset: 0;
   z-index: 0;
 }
 
 .container {
+  position: relative;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.word-wrapper {
-  position: relative;
-  overflow: hidden;
-  padding: 0.2em 0;
 }
 
 .word {
@@ -74,44 +70,6 @@ body {
   }
 }
 
-/* Shimmer effect */
-.shimmer {
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 50%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.04) 30%,
-    rgba(255, 255, 255, 0.08) 50%,
-    rgba(255, 255, 255, 0.04) 70%,
-    transparent
-  );
-  animation: shimmer 4s ease-in-out infinite;
-  animation-delay: 1.5s;
-  pointer-events: none;
-}
-
-@keyframes shimmer {
-  0% {
-    left: -100%;
-    opacity: 0;
-  }
-  10% {
-    opacity: 1;
-  }
-  90% {
-    opacity: 1;
-  }
-  100% {
-    left: 200%;
-    opacity: 0;
-  }
-}
-
-/* Subtle letter hover */
 .letter {
   transition: opacity 0.3s ease;
 }

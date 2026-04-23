@@ -1,68 +1,89 @@
-// Interactive dot grid
-const canvas = document.getElementById('grid');
+// Watercolor effect
+const canvas = document.getElementById('watercolor');
 const ctx = canvas.getContext('2d');
 
 let width, height;
-let dots = [];
-let mouse = { x: -1000, y: -1000 };
+let drops = [];
+let mouse = { x: -1000, y: -1000, moving: false };
+let lastMouse = { x: 0, y: 0 };
 
-const SPACING = 40;
-const DOT_SIZE = 1;
-const INTERACTION_RADIUS = 120;
-const RETURN_SPEED = 0.08;
-const PUSH_STRENGTH = 0.4;
+// Pastel colors
+const colors = [
+  { r: 255, g: 182, b: 193 }, // pink
+  { r: 255, g: 218, b: 185 }, // peach
+  { r: 173, g: 216, b: 230 }, // light blue
+  { r: 176, g: 224, b: 176 }, // soft green
+  { r: 221, g: 160, b: 221 }, // plum
+  { r: 255, g: 239, b: 169 }, // pale yellow
+  { r: 176, g: 196, b: 222 }, // steel blue
+  { r: 255, g: 192, b: 150 }, // light coral
+];
 
-class Dot {
-  constructor(x, y) {
-    this.baseX = x;
-    this.baseY = y;
+let colorIndex = 0;
+
+class Drop {
+  constructor(x, y, color) {
     this.x = x;
     this.y = y;
-    this.vx = 0;
-    this.vy = 0;
+    this.color = color;
+    this.size = 20 + Math.random() * 40;
+    this.opacity = 0.15 + Math.random() * 0.1;
+    this.life = 1;
+    this.decay = 0.003 + Math.random() * 0.002;
+
+    // Slight drift
+    this.vx = (Math.random() - 0.5) * 0.3;
+    this.vy = (Math.random() - 0.5) * 0.3;
+
+    // Organic shape variation
+    this.wobble = Math.random() * Math.PI * 2;
+    this.wobbleSpeed = 0.02 + Math.random() * 0.02;
   }
 
   update() {
-    // Distance from mouse
-    const dx = mouse.x - this.x;
-    const dy = mouse.y - this.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    // Push away from mouse
-    if (dist < INTERACTION_RADIUS) {
-      const force = (INTERACTION_RADIUS - dist) / INTERACTION_RADIUS;
-      const angle = Math.atan2(dy, dx);
-      this.vx -= Math.cos(angle) * force * PUSH_STRENGTH;
-      this.vy -= Math.sin(angle) * force * PUSH_STRENGTH;
-    }
-
-    // Return to base position
-    this.vx += (this.baseX - this.x) * RETURN_SPEED;
-    this.vy += (this.baseY - this.y) * RETURN_SPEED;
-
-    // Apply friction
-    this.vx *= 0.85;
-    this.vy *= 0.85;
-
-    // Update position
+    this.life -= this.decay;
     this.x += this.vx;
     this.y += this.vy;
+    this.wobble += this.wobbleSpeed;
+
+    // Slow down drift
+    this.vx *= 0.99;
+    this.vy *= 0.99;
   }
 
   draw() {
-    // Calculate displacement for opacity
-    const displacement = Math.sqrt(
-      Math.pow(this.x - this.baseX, 2) +
-      Math.pow(this.y - this.baseY, 2)
-    );
+    if (this.life <= 0) return;
 
-    // Base opacity + boost when displaced
-    const opacity = 0.15 + Math.min(displacement / 30, 0.6);
+    const { r, g, b } = this.color;
+    const alpha = this.opacity * this.life;
 
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, DOT_SIZE, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-    ctx.fill();
+    // Create soft, organic watercolor blob
+    ctx.save();
+    ctx.translate(this.x, this.y);
+
+    // Multiple overlapping circles for organic feel
+    for (let i = 0; i < 3; i++) {
+      const offsetX = Math.sin(this.wobble + i * 2) * this.size * 0.15;
+      const offsetY = Math.cos(this.wobble + i * 2.5) * this.size * 0.15;
+      const sizeVar = this.size * (0.7 + i * 0.15);
+
+      const gradient = ctx.createRadialGradient(
+        offsetX, offsetY, 0,
+        offsetX, offsetY, sizeVar
+      );
+
+      gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${alpha * 0.8})`);
+      gradient.addColorStop(0.4, `rgba(${r}, ${g}, ${b}, ${alpha * 0.4})`);
+      gradient.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, ${alpha * 0.1})`);
+      gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+
+      ctx.beginPath();
+      ctx.arc(offsetX, offsetY, sizeVar, 0, Math.PI * 2);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+    }
+
+    ctx.restore();
   }
 }
 
@@ -70,67 +91,84 @@ function init() {
   width = canvas.width = window.innerWidth;
   height = canvas.height = window.innerHeight;
 
-  dots = [];
+  // Fill with background color
+  ctx.fillStyle = '#faf9f7';
+  ctx.fillRect(0, 0, width, height);
+}
 
-  // Create grid of dots
-  const cols = Math.ceil(width / SPACING) + 1;
-  const rows = Math.ceil(height / SPACING) + 1;
+function addDrop(x, y) {
+  // Cycle through colors
+  const color = colors[colorIndex % colors.length];
+  colorIndex++;
 
-  const offsetX = (width - (cols - 1) * SPACING) / 2;
-  const offsetY = (height - (rows - 1) * SPACING) / 2;
+  // Add some position variance
+  const spread = 15;
+  const dropX = x + (Math.random() - 0.5) * spread;
+  const dropY = y + (Math.random() - 0.5) * spread;
 
-  for (let i = 0; i < cols; i++) {
-    for (let j = 0; j < rows; j++) {
-      const x = offsetX + i * SPACING;
-      const y = offsetY + j * SPACING;
-      dots.push(new Dot(x, y));
-    }
+  drops.push(new Drop(dropX, dropY, color));
+
+  // Occasionally add a second drop nearby
+  if (Math.random() > 0.6) {
+    const nearColor = colors[(colorIndex + 1) % colors.length];
+    drops.push(new Drop(
+      dropX + (Math.random() - 0.5) * 30,
+      dropY + (Math.random() - 0.5) * 30,
+      nearColor
+    ));
   }
 }
 
 function animate() {
-  ctx.clearRect(0, 0, width, height);
+  // Subtle fade to restore background
+  ctx.fillStyle = 'rgba(250, 249, 247, 0.01)';
+  ctx.fillRect(0, 0, width, height);
 
-  for (const dot of dots) {
-    dot.update();
-    dot.draw();
+  // Update and draw drops
+  for (let i = drops.length - 1; i >= 0; i--) {
+    const drop = drops[i];
+    drop.update();
+    drop.draw();
+
+    if (drop.life <= 0) {
+      drops.splice(i, 1);
+    }
   }
 
   requestAnimationFrame(animate);
 }
 
 function handleMouseMove(e) {
+  const dx = e.clientX - lastMouse.x;
+  const dy = e.clientY - lastMouse.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
   mouse.x = e.clientX;
   mouse.y = e.clientY;
+
+  // Add drops based on movement speed
+  if (dist > 8) {
+    addDrop(mouse.x, mouse.y);
+    lastMouse.x = mouse.x;
+    lastMouse.y = mouse.y;
+  }
 }
 
-function handleMouseLeave() {
-  mouse.x = -1000;
-  mouse.y = -1000;
+function handleTouchMove(e) {
+  if (e.touches.length > 0) {
+    const touch = e.touches[0];
+    handleMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
+  }
 }
 
 function handleResize() {
   init();
-}
-
-// Touch support
-function handleTouchMove(e) {
-  if (e.touches.length > 0) {
-    mouse.x = e.touches[0].clientX;
-    mouse.y = e.touches[0].clientY;
-  }
-}
-
-function handleTouchEnd() {
-  mouse.x = -1000;
-  mouse.y = -1000;
+  drops = [];
 }
 
 window.addEventListener('resize', handleResize);
 document.addEventListener('mousemove', handleMouseMove);
-document.addEventListener('mouseleave', handleMouseLeave);
 document.addEventListener('touchmove', handleTouchMove);
-document.addEventListener('touchend', handleTouchEnd);
 
 init();
 animate();

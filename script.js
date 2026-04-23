@@ -1,89 +1,130 @@
-// Watercolor effect
-const canvas = document.getElementById('watercolor');
+// Bouncing balls with collision physics
+const canvas = document.getElementById('balls');
 const ctx = canvas.getContext('2d');
 
 let width, height;
-let drops = [];
-let mouse = { x: -1000, y: -1000, moving: false };
-let lastMouse = { x: 0, y: 0 };
+let balls = [];
 
 // Pastel colors
 const colors = [
-  { r: 255, g: 182, b: 193 }, // pink
-  { r: 255, g: 218, b: 185 }, // peach
-  { r: 173, g: 216, b: 230 }, // light blue
-  { r: 176, g: 224, b: 176 }, // soft green
-  { r: 221, g: 160, b: 221 }, // plum
-  { r: 255, g: 239, b: 169 }, // pale yellow
-  { r: 176, g: 196, b: 222 }, // steel blue
-  { r: 255, g: 192, b: 150 }, // light coral
+  '#FFB5BA', // pink
+  '#B5DEFF', // light blue
+  '#BFFCC6', // mint green
+  '#FFDFBA', // peach
+  '#E2C2FF', // lavender
+  '#FFF5BA', // pale yellow
+  '#C2F0FF', // sky blue
+  '#FFD1DC', // blush
+  '#D4F0F0', // teal
+  '#FCE4EC', // rose
 ];
 
-let colorIndex = 0;
-
-class Drop {
-  constructor(x, y, color) {
+class Ball {
+  constructor(x, y, radius, color) {
     this.x = x;
     this.y = y;
+    this.radius = radius;
     this.color = color;
-    this.size = 20 + Math.random() * 40;
-    this.opacity = 0.15 + Math.random() * 0.1;
-    this.life = 1;
-    this.decay = 0.003 + Math.random() * 0.002;
+    this.mass = radius;
 
-    // Slight drift
-    this.vx = (Math.random() - 0.5) * 0.3;
-    this.vy = (Math.random() - 0.5) * 0.3;
-
-    // Organic shape variation
-    this.wobble = Math.random() * Math.PI * 2;
-    this.wobbleSpeed = 0.02 + Math.random() * 0.02;
-  }
-
-  update() {
-    this.life -= this.decay;
-    this.x += this.vx;
-    this.y += this.vy;
-    this.wobble += this.wobbleSpeed;
-
-    // Slow down drift
-    this.vx *= 0.99;
-    this.vy *= 0.99;
+    // Random initial velocity
+    const speed = 2 + Math.random() * 2;
+    const angle = Math.random() * Math.PI * 2;
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed;
   }
 
   draw() {
-    if (this.life <= 0) return;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fillStyle = this.color;
+    ctx.fill();
 
-    const { r, g, b } = this.color;
-    const alpha = this.opacity * this.life;
+    // Subtle shadow/depth
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.05)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 
-    // Create soft, organic watercolor blob
-    ctx.save();
-    ctx.translate(this.x, this.y);
+  update() {
+    // Gravity (subtle)
+    this.vy += 0.05;
 
-    // Multiple overlapping circles for organic feel
-    for (let i = 0; i < 3; i++) {
-      const offsetX = Math.sin(this.wobble + i * 2) * this.size * 0.15;
-      const offsetY = Math.cos(this.wobble + i * 2.5) * this.size * 0.15;
-      const sizeVar = this.size * (0.7 + i * 0.15);
+    // Air friction
+    this.vx *= 0.999;
+    this.vy *= 0.999;
 
-      const gradient = ctx.createRadialGradient(
-        offsetX, offsetY, 0,
-        offsetX, offsetY, sizeVar
-      );
+    // Update position
+    this.x += this.vx;
+    this.y += this.vy;
 
-      gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${alpha * 0.8})`);
-      gradient.addColorStop(0.4, `rgba(${r}, ${g}, ${b}, ${alpha * 0.4})`);
-      gradient.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, ${alpha * 0.1})`);
-      gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
-
-      ctx.beginPath();
-      ctx.arc(offsetX, offsetY, sizeVar, 0, Math.PI * 2);
-      ctx.fillStyle = gradient;
-      ctx.fill();
+    // Wall collisions
+    if (this.x - this.radius < 0) {
+      this.x = this.radius;
+      this.vx *= -0.9;
     }
+    if (this.x + this.radius > width) {
+      this.x = width - this.radius;
+      this.vx *= -0.9;
+    }
+    if (this.y - this.radius < 0) {
+      this.y = this.radius;
+      this.vy *= -0.9;
+    }
+    if (this.y + this.radius > height) {
+      this.y = height - this.radius;
+      this.vy *= -0.9;
 
-    ctx.restore();
+      // Add some random bounce to keep things moving
+      if (Math.abs(this.vy) < 0.5) {
+        this.vy = -(2 + Math.random() * 3);
+      }
+    }
+  }
+}
+
+function checkCollision(ball1, ball2) {
+  const dx = ball2.x - ball1.x;
+  const dy = ball2.y - ball1.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const minDist = ball1.radius + ball2.radius;
+
+  if (dist < minDist) {
+    // Collision detected - resolve it
+    const angle = Math.atan2(dy, dx);
+    const sin = Math.sin(angle);
+    const cos = Math.cos(angle);
+
+    // Rotate velocities
+    const vx1 = ball1.vx * cos + ball1.vy * sin;
+    const vy1 = ball1.vy * cos - ball1.vx * sin;
+    const vx2 = ball2.vx * cos + ball2.vy * sin;
+    const vy2 = ball2.vy * cos - ball2.vx * sin;
+
+    // Elastic collision formulas
+    const m1 = ball1.mass;
+    const m2 = ball2.mass;
+
+    const newVx1 = ((m1 - m2) * vx1 + 2 * m2 * vx2) / (m1 + m2);
+    const newVx2 = ((m2 - m1) * vx2 + 2 * m1 * vx1) / (m1 + m2);
+
+    // Rotate back
+    ball1.vx = newVx1 * cos - vy1 * sin;
+    ball1.vy = vy1 * cos + newVx1 * sin;
+    ball2.vx = newVx2 * cos - vy2 * sin;
+    ball2.vy = vy2 * cos + newVx2 * sin;
+
+    // Separate balls to prevent sticking
+    const overlap = minDist - dist;
+    const separateX = (overlap / 2) * cos;
+    const separateY = (overlap / 2) * sin;
+
+    ball1.x -= separateX;
+    ball1.y -= separateY;
+    ball2.x += separateX;
+    ball2.y += separateY;
   }
 }
 
@@ -91,82 +132,89 @@ function init() {
   width = canvas.width = window.innerWidth;
   height = canvas.height = window.innerHeight;
 
-  // Fill with background color
-  ctx.fillStyle = '#faf9f7';
-  ctx.fillRect(0, 0, width, height);
-}
+  balls = [];
 
-function addDrop(x, y) {
-  // Cycle through colors
-  const color = colors[colorIndex % colors.length];
-  colorIndex++;
+  // Create balls of varying sizes
+  const numBalls = Math.min(25, Math.floor((width * height) / 40000));
 
-  // Add some position variance
-  const spread = 15;
-  const dropX = x + (Math.random() - 0.5) * spread;
-  const dropY = y + (Math.random() - 0.5) * spread;
+  for (let i = 0; i < numBalls; i++) {
+    const radius = 20 + Math.random() * 60;
+    const x = radius + Math.random() * (width - radius * 2);
+    const y = radius + Math.random() * (height - radius * 2);
+    const color = colors[Math.floor(Math.random() * colors.length)];
 
-  drops.push(new Drop(dropX, dropY, color));
+    // Check for overlap with existing balls
+    let overlapping = false;
+    for (const ball of balls) {
+      const dx = x - ball.x;
+      const dy = y - ball.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < radius + ball.radius + 10) {
+        overlapping = true;
+        break;
+      }
+    }
 
-  // Occasionally add a second drop nearby
-  if (Math.random() > 0.6) {
-    const nearColor = colors[(colorIndex + 1) % colors.length];
-    drops.push(new Drop(
-      dropX + (Math.random() - 0.5) * 30,
-      dropY + (Math.random() - 0.5) * 30,
-      nearColor
-    ));
+    if (!overlapping) {
+      balls.push(new Ball(x, y, radius, color));
+    }
   }
 }
 
 function animate() {
-  // Subtle fade to restore background
-  ctx.fillStyle = 'rgba(250, 249, 247, 0.01)';
+  ctx.fillStyle = '#faf9f7';
   ctx.fillRect(0, 0, width, height);
 
-  // Update and draw drops
-  for (let i = drops.length - 1; i >= 0; i--) {
-    const drop = drops[i];
-    drop.update();
-    drop.draw();
+  // Update all balls
+  for (const ball of balls) {
+    ball.update();
+  }
 
-    if (drop.life <= 0) {
-      drops.splice(i, 1);
+  // Check collisions between all pairs
+  for (let i = 0; i < balls.length; i++) {
+    for (let j = i + 1; j < balls.length; j++) {
+      checkCollision(balls[i], balls[j]);
     }
+  }
+
+  // Draw all balls
+  for (const ball of balls) {
+    ball.draw();
   }
 
   requestAnimationFrame(animate);
 }
 
-function handleMouseMove(e) {
-  const dx = e.clientX - lastMouse.x;
-  const dy = e.clientY - lastMouse.y;
-  const dist = Math.sqrt(dx * dx + dy * dy);
+// Mouse interaction - push balls away
+let mouse = { x: -1000, y: -1000 };
 
+function handleMouseMove(e) {
   mouse.x = e.clientX;
   mouse.y = e.clientY;
 
-  // Add drops based on movement speed
-  if (dist > 8) {
-    addDrop(mouse.x, mouse.y);
-    lastMouse.x = mouse.x;
-    lastMouse.y = mouse.y;
+  // Push nearby balls
+  for (const ball of balls) {
+    const dx = ball.x - mouse.x;
+    const dy = ball.y - mouse.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const minDist = ball.radius + 80;
+
+    if (dist < minDist) {
+      const force = (minDist - dist) / minDist * 0.5;
+      const angle = Math.atan2(dy, dx);
+      ball.vx += Math.cos(angle) * force * 3;
+      ball.vy += Math.sin(angle) * force * 3;
+    }
   }
 }
 
 function handleTouchMove(e) {
   if (e.touches.length > 0) {
-    const touch = e.touches[0];
-    handleMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
+    handleMouseMove({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY });
   }
 }
 
-function handleResize() {
-  init();
-  drops = [];
-}
-
-window.addEventListener('resize', handleResize);
+window.addEventListener('resize', init);
 document.addEventListener('mousemove', handleMouseMove);
 document.addEventListener('touchmove', handleTouchMove);
 

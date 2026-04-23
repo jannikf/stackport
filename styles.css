@@ -5,10 +5,8 @@
 }
 
 :root {
-  --bg: #090909;
-  --text: #e8e4dd;
-  --accent: #c9a55a;
-  --accent-subtle: rgba(201, 165, 90, 0.15);
+  --bg: #050505;
+  --text: #ffffff;
 }
 
 html, body {
@@ -26,113 +24,96 @@ body {
   -webkit-user-select: none;
 }
 
-/* Subtle radial gradient background */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: radial-gradient(
-    ellipse 80% 60% at 50% 50%,
-    rgba(201, 165, 90, 0.03) 0%,
-    transparent 60%
-  );
-  pointer-events: none;
-}
-
 .container {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 1.5rem;
+  justify-content: center;
+}
+
+.word-wrapper {
+  position: relative;
+  overflow: hidden;
+  padding: 0.2em 0;
 }
 
 .word {
   display: flex;
-  gap: 0.03em;
-  font-family: 'Cormorant Garamond', Georgia, serif;
-  font-weight: 300;
-  font-size: clamp(3rem, 14vw, 10rem);
-  letter-spacing: 0.15em;
+  font-family: 'Outfit', system-ui, sans-serif;
+  font-weight: 200;
+  font-size: clamp(2.5rem, 12vw, 8rem);
+  letter-spacing: 0.25em;
   color: var(--text);
+  text-transform: lowercase;
 }
 
 .letter {
   display: inline-block;
   opacity: 0;
-  transform: translateY(30px);
-  animation: letter-reveal 1s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-  animation-delay: calc(var(--i) * 0.07s + 0.3s);
-  transition: color 0.4s ease, transform 0.4s ease;
+  filter: blur(12px);
+  transform: translateY(20px);
+  animation: reveal 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  animation-delay: calc(var(--i) * 0.06s + 0.2s);
 }
 
-@keyframes letter-reveal {
+@keyframes reveal {
   0% {
     opacity: 0;
-    transform: translateY(30px);
+    filter: blur(12px);
+    transform: translateY(20px);
   }
   100% {
     opacity: 1;
+    filter: blur(0);
     transform: translateY(0);
   }
 }
 
-.letter:hover {
-  color: var(--accent);
-  transform: translateY(-4px);
-}
-
-/* Elegant underline */
-.line {
-  width: 0;
-  height: 1px;
+/* Shimmer effect */
+.shimmer {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
   background: linear-gradient(
     90deg,
     transparent,
-    var(--accent) 20%,
-    var(--accent) 80%,
+    rgba(255, 255, 255, 0.04) 30%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.04) 70%,
     transparent
   );
-  animation: line-expand 1s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-  animation-delay: 1s;
+  animation: shimmer 4s ease-in-out infinite;
+  animation-delay: 1.5s;
+  pointer-events: none;
 }
 
-@keyframes line-expand {
+@keyframes shimmer {
   0% {
-    width: 0;
+    left: -100%;
     opacity: 0;
   }
-  100% {
-    width: min(50vw, 400px);
-    opacity: 0.6;
-  }
-}
-
-/* Subtle ambient animation */
-.word {
-  animation: breathe 8s ease-in-out infinite;
-  animation-delay: 2s;
-}
-
-@keyframes breathe {
-  0%, 100% {
-    letter-spacing: 0.15em;
+  10% {
     opacity: 1;
   }
-  50% {
-    letter-spacing: 0.18em;
-    opacity: 0.9;
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 200%;
+    opacity: 0;
   }
 }
 
-/* Vignette */
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(
-    ellipse at center,
-    transparent 50%,
-    rgba(0, 0, 0, 0.4) 100%
-  );
+/* Subtle letter hover */
+.letter {
+  transition: opacity 0.3s ease;
+}
+
+.word:hover .letter {
+  opacity: 0.4;
+}
+
+.word:hover .letter:hover {
+  opacity: 1;
 }

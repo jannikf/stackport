@@ -1,33 +1,37 @@
-// Subtle mouse parallax
-const word = document.querySelector('.word');
-const letters = document.querySelectorAll('.letter');
+// Minimal - just cursor glow effect
+const wrapper = document.querySelector('.word-wrapper');
 
-let mouseX = 0;
-let mouseY = 0;
-let currentX = 0;
-let currentY = 0;
+let glowEl = null;
+
+function createGlow() {
+  glowEl = document.createElement('div');
+  glowEl.style.cssText = `
+    position: fixed;
+    width: 300px;
+    height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 70%);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: opacity 0.3s ease;
+    opacity: 0;
+    z-index: -1;
+  `;
+  document.body.appendChild(glowEl);
+}
 
 function handleMouseMove(e) {
-  const centerX = window.innerWidth / 2;
-  const centerY = window.innerHeight / 2;
-
-  mouseX = (e.clientX - centerX) / centerX;
-  mouseY = (e.clientY - centerY) / centerY;
+  if (!glowEl) return;
+  glowEl.style.left = e.clientX + 'px';
+  glowEl.style.top = e.clientY + 'px';
+  glowEl.style.opacity = '1';
 }
 
-function animate() {
-  // Smooth interpolation
-  currentX += (mouseX - currentX) * 0.05;
-  currentY += (mouseY - currentY) * 0.05;
-
-  // Very subtle movement
-  const moveX = currentX * 8;
-  const moveY = currentY * 4;
-
-  word.style.transform = `translate(${moveX}px, ${moveY}px)`;
-
-  requestAnimationFrame(animate);
+function handleMouseLeave() {
+  if (!glowEl) return;
+  glowEl.style.opacity = '0';
 }
 
+createGlow();
 document.addEventListener('mousemove', handleMouseMove);
-animate();
+document.addEventListener('mouseleave', handleMouseLeave);

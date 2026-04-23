@@ -1,154 +1,103 @@
-// Particle system
-const canvas = document.getElementById('particles');
+// Retro perspective grid
+const canvas = document.getElementById('grid');
 const ctx = canvas.getContext('2d');
 
 let width, height;
-let particles = [];
-let mouse = { x: 0, y: 0 };
-let portal = document.querySelector('.portal');
-
-// Colors matching the design
-const colors = [
-  'rgba(245, 158, 11, 0.6)',  // amber
-  'rgba(6, 182, 212, 0.5)',   // cyan
-  'rgba(217, 70, 239, 0.4)',  // magenta
-  'rgba(255, 255, 255, 0.3)', // white
-];
-
-class Particle {
-  constructor() {
-    this.reset();
-  }
-
-  reset() {
-    // Start from edges or center
-    const startFromCenter = Math.random() > 0.7;
-
-    if (startFromCenter) {
-      // Start from center and move outward
-      this.x = width / 2 + (Math.random() - 0.5) * 100;
-      this.y = height / 2 + (Math.random() - 0.5) * 100;
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 0.2 + Math.random() * 0.5;
-      this.vx = Math.cos(angle) * speed;
-      this.vy = Math.sin(angle) * speed;
-    } else {
-      // Start from edges and drift
-      const edge = Math.floor(Math.random() * 4);
-      switch (edge) {
-        case 0: // top
-          this.x = Math.random() * width;
-          this.y = -10;
-          break;
-        case 1: // right
-          this.x = width + 10;
-          this.y = Math.random() * height;
-          break;
-        case 2: // bottom
-          this.x = Math.random() * width;
-          this.y = height + 10;
-          break;
-        case 3: // left
-          this.x = -10;
-          this.y = Math.random() * height;
-          break;
-      }
-      // Drift toward center
-      const dx = width / 2 - this.x;
-      const dy = height / 2 - this.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const speed = 0.3 + Math.random() * 0.4;
-      this.vx = (dx / dist) * speed + (Math.random() - 0.5) * 0.3;
-      this.vy = (dy / dist) * speed + (Math.random() - 0.5) * 0.3;
-    }
-
-    this.size = 1 + Math.random() * 2;
-    this.color = colors[Math.floor(Math.random() * colors.length)];
-    this.life = 0;
-    this.maxLife = 200 + Math.random() * 300;
-    this.opacity = 0;
-  }
-
-  update() {
-    this.x += this.vx;
-    this.y += this.vy;
-    this.life++;
-
-    // Fade in and out
-    if (this.life < 50) {
-      this.opacity = this.life / 50;
-    } else if (this.life > this.maxLife - 50) {
-      this.opacity = (this.maxLife - this.life) / 50;
-    } else {
-      this.opacity = 1;
-    }
-
-    // Subtle attraction to center
-    const dx = width / 2 - this.x;
-    const dy = height / 2 - this.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    if (dist > 50) {
-      this.vx += (dx / dist) * 0.002;
-      this.vy += (dy / dist) * 0.002;
-    }
-
-    // Speed limit
-    const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-    if (speed > 1) {
-      this.vx = (this.vx / speed) * 1;
-      this.vy = (this.vy / speed) * 1;
-    }
-
-    // Reset if dead or too far
-    if (this.life > this.maxLife || this.x < -50 || this.x > width + 50 || this.y < -50 || this.y > height + 50) {
-      this.reset();
-    }
-  }
-
-  draw() {
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-    ctx.fillStyle = this.color.replace(/[\d.]+\)$/, (this.opacity * 0.6) + ')');
-    ctx.fill();
-
-    // Glow effect
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.size * 2, 0, Math.PI * 2);
-    ctx.fillStyle = this.color.replace(/[\d.]+\)$/, (this.opacity * 0.2) + ')');
-    ctx.fill();
-  }
-}
+let time = 0;
 
 function resize() {
   width = canvas.width = window.innerWidth;
   height = canvas.height = window.innerHeight;
 }
 
-function init() {
-  resize();
+function drawGrid() {
+  ctx.clearRect(0, 0, width, height);
 
-  // Create particles
-  const particleCount = Math.min(80, Math.floor((width * height) / 15000));
-  for (let i = 0; i < particleCount; i++) {
-    const p = new Particle();
-    p.life = Math.random() * p.maxLife; // Stagger initial states
-    particles.push(p);
+  // Horizon position
+  const horizon = height * 0.5;
+  const vanishX = width / 2;
+
+  // Grid colors
+  const gridColor = 'rgba(99, 102, 241, 0.25)';
+  const glowColor = 'rgba(139, 92, 246, 0.15)';
+
+  // Draw vertical lines converging to vanishing point
+  const verticalLines = 30;
+  const spread = width * 1.5;
+
+  ctx.strokeStyle = gridColor;
+  ctx.lineWidth = 1;
+
+  for (let i = -verticalLines; i <= verticalLines; i++) {
+    const x = vanishX + (i / verticalLines) * spread;
+
+    ctx.beginPath();
+    ctx.moveTo(vanishX, horizon);
+    ctx.lineTo(x, height);
+    ctx.stroke();
   }
+
+  // Draw horizontal lines with perspective
+  const horizontalLines = 20;
+  const lineSpacing = 40;
+
+  for (let i = 0; i < horizontalLines; i++) {
+    // Animated offset for scrolling effect
+    const offset = (time * 0.5) % lineSpacing;
+    const baseY = horizon + (i * lineSpacing) + offset;
+
+    if (baseY > height) continue;
+    if (baseY < horizon) continue;
+
+    // Perspective scale
+    const t = (baseY - horizon) / (height - horizon);
+    const perspectiveScale = Math.pow(t, 0.8);
+
+    // Line opacity based on distance
+    const opacity = 0.1 + perspectiveScale * 0.3;
+
+    ctx.strokeStyle = `rgba(99, 102, 241, ${opacity})`;
+    ctx.lineWidth = 0.5 + perspectiveScale * 1.5;
+
+    ctx.beginPath();
+    ctx.moveTo(0, baseY);
+    ctx.lineTo(width, baseY);
+    ctx.stroke();
+  }
+
+  // Horizon glow
+  const gradient = ctx.createLinearGradient(0, horizon - 50, 0, horizon + 100);
+  gradient.addColorStop(0, 'transparent');
+  gradient.addColorStop(0.4, 'rgba(139, 92, 246, 0.1)');
+  gradient.addColorStop(0.5, 'rgba(139, 92, 246, 0.2)');
+  gradient.addColorStop(0.6, 'rgba(99, 102, 241, 0.1)');
+  gradient.addColorStop(1, 'transparent');
+
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, horizon - 50, width, 150);
+
+  // Sun/light source
+  const sunGradient = ctx.createRadialGradient(vanishX, horizon, 0, vanishX, horizon, 200);
+  sunGradient.addColorStop(0, 'rgba(168, 85, 247, 0.3)');
+  sunGradient.addColorStop(0.3, 'rgba(139, 92, 246, 0.15)');
+  sunGradient.addColorStop(0.6, 'rgba(99, 102, 241, 0.05)');
+  sunGradient.addColorStop(1, 'transparent');
+
+  ctx.fillStyle = sunGradient;
+  ctx.fillRect(0, 0, width, height);
+
+  time++;
 }
 
 function animate() {
-  ctx.clearRect(0, 0, width, height);
-
-  for (const particle of particles) {
-    particle.update();
-    particle.draw();
-  }
-
+  drawGrid();
   requestAnimationFrame(animate);
 }
 
-// Mouse parallax effect
+// Mouse parallax for letters
+const word = document.querySelector('.word');
+const letters = document.querySelectorAll('.letter');
+
 function handleMouseMove(e) {
   const centerX = window.innerWidth / 2;
   const centerY = window.innerHeight / 2;
@@ -156,28 +105,55 @@ function handleMouseMove(e) {
   const deltaX = (e.clientX - centerX) / centerX;
   const deltaY = (e.clientY - centerY) / centerY;
 
-  // Subtle parallax on the portal
-  portal.style.transform = `translate(${deltaX * 15}px, ${deltaY * 15}px) rotateX(${deltaY * 5}deg) rotateY(${-deltaX * 5}deg)`;
+  // Subtle rotation on the whole word
+  word.style.transform = `
+    translateY(0)
+    rotateX(${5 + deltaY * 5}deg)
+    rotateY(${deltaX * 8}deg)
+  `;
+
+  // Individual letter depth based on mouse proximity
+  letters.forEach((letter, i) => {
+    const rect = letter.getBoundingClientRect();
+    const letterCenterX = rect.left + rect.width / 2;
+    const letterCenterY = rect.top + rect.height / 2;
+
+    const distX = e.clientX - letterCenterX;
+    const distY = e.clientY - letterCenterY;
+    const dist = Math.sqrt(distX * distX + distY * distY);
+    const maxDist = 300;
+
+    const proximity = Math.max(0, 1 - dist / maxDist);
+    const lift = proximity * 15;
+
+    letter.style.transform = `translateY(${-lift}px) translateZ(${lift * 2}px)`;
+  });
 }
 
 function handleMouseLeave() {
-  portal.style.transform = 'translate(0, 0) rotateX(0) rotateY(0)';
+  word.style.transform = 'translateY(0) rotateX(5deg) rotateY(0)';
+  letters.forEach(letter => {
+    letter.style.transform = 'translateY(0) translateZ(0)';
+  });
 }
 
-// Touch support
-function handleTouchMove(e) {
-  if (e.touches.length > 0) {
-    handleMouseMove({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY });
-  }
+// Randomized glitch timing
+function randomGlitch() {
+  const randomLetter = letters[Math.floor(Math.random() * letters.length)];
+  const main = randomLetter.querySelector('.letter-main');
+
+  main.style.animation = 'none';
+  main.offsetHeight; // Force reflow
+  main.style.animation = 'glitch 0.3s ease-in-out';
+
+  setTimeout(randomGlitch, 2000 + Math.random() * 5000);
 }
 
-// Event listeners
+// Initialize
 window.addEventListener('resize', resize);
 document.addEventListener('mousemove', handleMouseMove);
 document.addEventListener('mouseleave', handleMouseLeave);
-document.addEventListener('touchmove', handleTouchMove);
-document.addEventListener('touchend', handleMouseLeave);
 
-// Initialize
-init();
+resize();
 animate();
+setTimeout(randomGlitch, 3000);

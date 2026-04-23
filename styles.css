@@ -26,6 +26,8 @@ body {
   align-items: center;
   justify-content: center;
   perspective: 1000px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Film grain */

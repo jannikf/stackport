@@ -3,24 +3,15 @@
 const canvas  = document.getElementById('canvas');
 const ctx     = canvas.getContext('2d');
 const dotEl   = document.getElementById('cursor-dot');
-const ringEl  = document.getElementById('cursor-ring');
 const content = document.querySelector('.content');
 
 // ── Mouse ─────────────────────────────────────────────────────────────────────
 
-let mx = -9999, my = -9999; // cursor position (off-screen until first move)
-let rx = -9999, ry = -9999; // ring position (springs toward cursor)
-let firstMove = true;
+let mx = -9999, my = -9999;
 
 document.addEventListener('mousemove', e => {
   mx = e.clientX;
   my = e.clientY;
-  if (firstMove) {
-    // Snap ring on first appearance so it doesn't fly in from off-screen
-    rx = mx;
-    ry = my;
-    firstMove = false;
-  }
 });
 
 document.addEventListener('mouseleave', () => {
@@ -118,12 +109,7 @@ function draw() {
 function animate() {
   requestAnimationFrame(animate);
 
-  // Cursor ring springs toward cursor
-  rx += (mx - rx) * 0.1;
-  ry += (my - ry) * 0.1;
-
-  dotEl.style.transform  = `translate(${mx}px,${my}px)`;
-  ringEl.style.transform = `translate(${rx}px,${ry}px)`;
+  dotEl.style.transform = `translate(${mx}px,${my}px)`;
 
   // Subtle 3D tilt of text based on mouse position
   if (mx > -100) {

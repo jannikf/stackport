@@ -1,277 +1,141 @@
-import * as THREE from 'three';
+'use strict';
 
-// ── Renderer ──────────────────────────────────────────────────────────────────
-const canvas = document.getElementById('canvas');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setClearColor(0x020208);
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const canvas  = document.getElementById('canvas');
+const ctx     = canvas.getContext('2d');
+const dotEl   = document.getElementById('cursor-dot');
+const ringEl  = document.getElementById('cursor-ring');
+const content = document.querySelector('.content');
 
-// ── Scene & Camera ────────────────────────────────────────────────────────────
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(
-  65, window.innerWidth / window.innerHeight, 0.01, 100
-);
-camera.position.z = 4.0;
+// ── Mouse ─────────────────────────────────────────────────────────────────────
 
-const group = new THREE.Group();
-scene.add(group);
+let mx = -9999, my = -9999; // cursor position (off-screen until first move)
+let rx = -9999, ry = -9999; // ring position (springs toward cursor)
+let firstMove = true;
 
-// ── Shaders ───────────────────────────────────────────────────────────────────
-const vertexShader = `
-  uniform float uTime;
-  uniform float uSize;
-  attribute vec3  aColor;
-  attribute float aScale;
-  attribute float aPhase;
-  varying vec3 vColor;
-
-  void main() {
-    vColor = aColor;
-
-    // Subtle breathing displacement along the normal
-    float wave = sin(position.x * 3.5 + uTime * 0.55 + aPhase) * 0.022
-               + cos(position.y * 2.8 + uTime * 0.40 + aPhase * 1.4) * 0.022;
-    vec3 pos = position + normalize(position + vec3(0.0001)) * wave;
-
-    vec4 mv = modelViewMatrix * vec4(pos, 1.0);
-    gl_PointSize = uSize * aScale / -mv.z;
-    gl_Position  = projectionMatrix * mv;
+document.addEventListener('mousemove', e => {
+  mx = e.clientX;
+  my = e.clientY;
+  if (firstMove) {
+    // Snap ring on first appearance so it doesn't fly in from off-screen
+    rx = mx;
+    ry = my;
+    firstMove = false;
   }
-`;
+});
 
-const fragmentShader = `
-  varying vec3 vColor;
+document.addEventListener('mouseleave', () => {
+  mx = -9999;
+  my = -9999;
+});
 
-  void main() {
-    vec2  uv = gl_PointCoord - 0.5;
-    float a  = exp(-dot(uv, uv) * 16.0);
-    gl_FragColor = vec4(vColor, a);
+// ── Dot grid ──────────────────────────────────────────────────────────────────
+
+const SPACING = 36;   // px between dots
+const BASE_R  = 1.2;  // resting dot radius
+const MAX_R   = 5.8;  // max radius near cursor
+const GLOW_D  = 190;  // glow influence radius (px)
+const REPEL_D = 105;  // repulsion influence radius (px)
+const REPEL_F = 20;   // max repulsion displacement (px)
+const SPRING  = 0.12; // spring stiffness (0–1)
+
+let W, H, N;
+let dotBX, dotBY; // base positions
+let dotCX, dotCY; // current positions (spring)
+let dotR;         // current radii (spring)
+
+function buildGrid() {
+  const cols = Math.floor(W / SPACING) + 2;
+  const rows = Math.floor(H / SPACING) + 2;
+  const ox   = (W - (cols - 1) * SPACING) / 2;
+  const oy   = (H - (rows - 1) * SPACING) / 2;
+
+  N     = cols * rows;
+  dotBX = new Float32Array(N);
+  dotBY = new Float32Array(N);
+  dotCX = new Float32Array(N);
+  dotCY = new Float32Array(N);
+  dotR  = new Float32Array(N).fill(BASE_R);
+
+  let i = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++, i++) {
+      const x = ox + c * SPACING;
+      const y = oy + r * SPACING;
+      dotBX[i] = dotCX[i] = x;
+      dotBY[i] = dotCY[i] = y;
+    }
   }
-`;
-
-// ── Helper: make particle ShaderMaterial ──────────────────────────────────────
-function makeParticleMat(baseSize) {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      uTime: { value: 0 },
-      uSize: { value: baseSize * renderer.getPixelRatio() },
-    },
-    vertexShader,
-    fragmentShader,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    depthTest: false,
-  });
 }
 
-// ── Helper: torus-knot particle geometry ──────────────────────────────────────
-// Parametric (p, q) torus knot, t ∈ [0, 2π]
-// x = (R + r·cos(q·t))·cos(p·t)
-// y = (R + r·cos(q·t))·sin(p·t)
-// z = r·sin(q·t)
-function makeKnotGeo(count, p, q, R, r, scatter, hueBase, hueSpread) {
-  const pos    = new Float32Array(count * 3);
-  const col    = new Float32Array(count * 3);
-  const scale  = new Float32Array(count);
-  const phase  = new Float32Array(count);
-  const color  = new THREE.Color();
-
-  for (let i = 0; i < count; i++) {
-    const t  = Math.random() * Math.PI * 2;
-    const cx = (R + r * Math.cos(q * t)) * Math.cos(p * t);
-    const cy = (R + r * Math.cos(q * t)) * Math.sin(p * t);
-    const cz = r * Math.sin(q * t);
-
-    pos[i * 3]     = cx + (Math.random() - 0.5) * scatter;
-    pos[i * 3 + 1] = cy + (Math.random() - 0.5) * scatter;
-    pos[i * 3 + 2] = cz + (Math.random() - 0.5) * scatter;
-
-    color.setHSL((hueBase + Math.random() * hueSpread) % 1.0, 1.0, 0.65);
-    col[i * 3]     = color.r;
-    col[i * 3 + 1] = color.g;
-    col[i * 3 + 2] = color.b;
-
-    scale[i] = 0.35 + Math.random() * 1.3;
-    phase[i] = Math.random() * Math.PI * 2;
-  }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos,   3));
-  geo.setAttribute('aColor',   new THREE.BufferAttribute(col,   3));
-  geo.setAttribute('aScale',   new THREE.BufferAttribute(scale, 1));
-  geo.setAttribute('aPhase',   new THREE.BufferAttribute(phase, 1));
-  return geo;
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  buildGrid();
 }
 
-// ── Helper: star-field geometry ───────────────────────────────────────────────
-function makeStarGeo(count) {
-  const pos   = new Float32Array(count * 3);
-  const col   = new Float32Array(count * 3);
-  const scale = new Float32Array(count);
-  const phase = new Float32Array(count);
+// ── Draw frame ────────────────────────────────────────────────────────────────
 
-  for (let i = 0; i < count; i++) {
-    const rr    = 7 + Math.random() * 11;
-    const theta = Math.random() * Math.PI * 2;
-    const phi   = Math.acos(2 * Math.random() - 1);
+function draw() {
+  ctx.clearRect(0, 0, W, H);
 
-    pos[i * 3]     = rr * Math.sin(phi) * Math.cos(theta);
-    pos[i * 3 + 1] = rr * Math.sin(phi) * Math.sin(theta);
-    pos[i * 3 + 2] = rr * Math.cos(phi);
+  for (let i = 0; i < N; i++) {
+    const bx = dotBX[i];
+    const by = dotBY[i];
+    const dx = bx - mx;
+    const dy = by - my;
+    const dist = Math.sqrt(dx * dx + dy * dy);
 
-    const b = 0.55 + Math.random() * 0.45;
-    col[i * 3]     = b * 0.78;
-    col[i * 3 + 1] = b * 0.88;
-    col[i * 3 + 2] = b;
+    // Repulsion — push dot away from cursor
+    let tx = bx, ty = by;
+    if (dist < REPEL_D && dist > 0.01) {
+      const f = (1 - dist / REPEL_D) * REPEL_F;
+      tx = bx + (dx / dist) * f;
+      ty = by + (dy / dist) * f;
+    }
+    dotCX[i] += (tx - dotCX[i]) * SPRING;
+    dotCY[i] += (ty - dotCY[i]) * SPRING;
 
-    scale[i] = 0.08 + Math.random() * 0.55;
-    phase[i] = Math.random() * Math.PI * 2;
+    // Radius — grow toward cursor
+    const ratio   = dist < GLOW_D ? 1 - dist / GLOW_D : 0;
+    const targetR = BASE_R + ratio * (MAX_R - BASE_R);
+    dotR[i] += (targetR - dotR[i]) * SPRING;
+
+    // Color — dim white → bright blue-white
+    const alpha = 0.07 + ratio * 0.83;
+    const r = (ratio * 80)       | 0;
+    const g = (70  + ratio * 170) | 0;
+    const b = (200 + ratio * 55)  | 0;
+
+    ctx.beginPath();
+    ctx.arc(dotCX[i], dotCY[i], dotR[i], 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${r},${g},${b},${alpha.toFixed(2)})`;
+    ctx.fill();
   }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos,   3));
-  geo.setAttribute('aColor',   new THREE.BufferAttribute(col,   3));
-  geo.setAttribute('aScale',   new THREE.BufferAttribute(scale, 1));
-  geo.setAttribute('aPhase',   new THREE.BufferAttribute(phase, 1));
-  return geo;
 }
-
-// ── Particle clouds ───────────────────────────────────────────────────────────
-
-// Outer (2,3) trefoil knot — electric blue / cyan
-const outerMat  = makeParticleMat(62);
-const outerMesh = new THREE.Points(
-  makeKnotGeo(9000, 2, 3, 0.96, 0.33, 0.14, 0.52, 0.24),
-  outerMat
-);
-group.add(outerMesh);
-
-// Inner (3,5) knot — deep violet / indigo
-const innerMat  = makeParticleMat(48);
-const innerMesh = new THREE.Points(
-  makeKnotGeo(4500, 3, 5, 0.56, 0.19, 0.10, 0.72, 0.22),
-  innerMat
-);
-innerMesh.scale.setScalar(0.82);
-group.add(innerMesh);
-
-// Stars
-const starMat  = makeParticleMat(22);
-const starMesh = new THREE.Points(makeStarGeo(1800), starMat);
-group.add(starMesh);
-
-// ── Wireframe geometry (central decoration) ───────────────────────────────────
-const wireMat = (color, opacity) =>
-  new THREE.MeshBasicMaterial({
-    color,
-    wireframe: true,
-    transparent: true,
-    opacity,
-    depthWrite: false,
-    depthTest: false,
-  });
-
-const dodec = new THREE.Mesh(
-  new THREE.DodecahedronGeometry(0.62, 0),
-  wireMat(0x00aaff, 0.13)
-);
-group.add(dodec);
-
-const icosa = new THREE.Mesh(
-  new THREE.IcosahedronGeometry(0.40, 1),
-  wireMat(0x7733ff, 0.18)
-);
-group.add(icosa);
-
-// Thin outer ring
-const ringGeo = new THREE.TorusGeometry(1.55, 0.003, 4, 120);
-const ringMat = new THREE.MeshBasicMaterial({
-  color: 0x0066ff,
-  transparent: true,
-  opacity: 0.25,
-  depthWrite: false,
-  depthTest: false,
-});
-const ring = new THREE.Mesh(ringGeo, ringMat);
-ring.rotation.x = Math.PI * 0.35;
-group.add(ring);
-
-// Second ring, slightly tilted the other way
-const ring2 = ring.clone();
-ring2.rotation.x = -Math.PI * 0.2;
-ring2.rotation.z = Math.PI * 0.15;
-ring2.material = new THREE.MeshBasicMaterial({
-  color: 0x9900ff,
-  transparent: true,
-  opacity: 0.18,
-  depthWrite: false,
-  depthTest: false,
-});
-group.add(ring2);
-
-// ── Mouse parallax ────────────────────────────────────────────────────────────
-const mouse  = new THREE.Vector2();
-const smooth = new THREE.Vector2();
-
-window.addEventListener('mousemove', e => {
-  mouse.x = (e.clientX / window.innerWidth  - 0.5) * 2;
-  mouse.y = (e.clientY / window.innerHeight - 0.5) * 2;
-});
-
-// Touch support
-window.addEventListener('touchmove', e => {
-  if (!e.touches[0]) return;
-  mouse.x = (e.touches[0].clientX / window.innerWidth  - 0.5) * 2;
-  mouse.y = (e.touches[0].clientY / window.innerHeight - 0.5) * 2;
-}, { passive: true });
-
-// ── Resize ────────────────────────────────────────────────────────────────────
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  const pr = Math.min(window.devicePixelRatio, 2);
-  renderer.setPixelRatio(pr);
-  outerMat.uniforms.uSize.value = 62 * pr;
-  innerMat.uniforms.uSize.value = 48 * pr;
-  starMat.uniforms.uSize.value  = 22 * pr;
-});
 
 // ── Animation loop ────────────────────────────────────────────────────────────
-function animate(ms) {
+
+function animate() {
   requestAnimationFrame(animate);
-  const t = ms * 0.001;
 
-  // Update time uniforms
-  outerMat.uniforms.uTime.value = t;
-  innerMat.uniforms.uTime.value = t;
-  starMat.uniforms.uTime.value  = t;
+  // Cursor ring springs toward cursor
+  rx += (mx - rx) * 0.1;
+  ry += (my - ry) * 0.1;
 
-  // Smooth mouse spring
-  smooth.x += (mouse.x - smooth.x) * 0.042;
-  smooth.y += (mouse.y - smooth.y) * 0.042;
+  dotEl.style.transform  = `translate(${mx}px,${my}px)`;
+  ringEl.style.transform = `translate(${rx}px,${ry}px)`;
 
-  // Parallax tilt of whole scene
-  group.rotation.y =  smooth.x * 0.28;
-  group.rotation.x = -smooth.y * 0.20;
+  // Subtle 3D tilt of text based on mouse position
+  if (mx > -100) {
+    const tiltX = ((my / H) - 0.5) * -7;
+    const tiltY = ((mx / W) - 0.5) *  9;
+    content.style.transform =
+      `perspective(1200px) rotateX(${tiltX.toFixed(2)}deg) rotateY(${tiltY.toFixed(2)}deg)`;
+  }
 
-  // Independent object rotations
-  outerMesh.rotation.z =  t * 0.075;
-  innerMesh.rotation.z = -t * 0.115;
-  innerMesh.rotation.x =  t * 0.048;
-
-  dodec.rotation.y = t * 0.22;
-  dodec.rotation.x = t * 0.14;
-
-  icosa.rotation.y = -t * 0.31;
-  icosa.rotation.z =  t * 0.09;
-
-  ring.rotation.z  =  t * 0.06;
-  ring2.rotation.z = -t * 0.08;
-
-  renderer.render(scene, camera);
+  draw();
 }
 
+window.addEventListener('resize', resize);
+resize();
 requestAnimationFrame(animate);

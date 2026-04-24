@@ -2,17 +2,15 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  cursor: none;
 }
 
 html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #020208;
-  color: white;
+  background: #000;
   font-family: 'Outfit', system-ui, sans-serif;
-  user-select: none;
-  -webkit-user-select: none;
 }
 
 #canvas {
@@ -21,63 +19,72 @@ html, body {
   display: block;
 }
 
-.ui {
+/* ── Custom cursor ── */
+
+#cursor-dot {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  background: #fff;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1000;
+  will-change: transform;
+}
+
+#cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 32px;
+  height: 32px;
+  margin: -16px 0 0 -16px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1000;
+  will-change: transform;
+}
+
+/* ── Content ── */
+
+.content {
   position: fixed;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1.5rem;
   pointer-events: none;
   z-index: 10;
-}
-
-.ui::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at center,
-    transparent 35%,
-    rgba(2, 2, 8, 0.55) 100%
-  );
-}
-
-.wordmark {
-  position: relative;
-  text-align: center;
+  will-change: transform;
 }
 
 .title {
   font-weight: 100;
   font-size: clamp(2.5rem, 8vw, 6rem);
-  letter-spacing: 0.5em;
-  margin-right: -0.5em;
-  color: rgba(255, 255, 255, 0.95);
-  text-shadow:
-    0 0 60px rgba(0, 170, 255, 0.3),
-    0 0 120px rgba(80, 80, 255, 0.15);
+  letter-spacing: 0.45em;
+  margin-right: -0.45em;
+  color: rgba(255, 255, 255, 0.92);
   opacity: 0;
-  animation: appear 1.5s cubic-bezier(0.16, 1, 0.3, 1) 1.0s forwards;
+  animation: fadein 1.2s ease 0.5s forwards;
 }
 
-.sub {
+.tagline {
   font-weight: 200;
-  font-size: clamp(0.6rem, 1.1vw, 0.85rem);
-  letter-spacing: 0.42em;
-  margin-right: -0.42em;
-  color: rgba(120, 175, 255, 0.4);
+  font-size: clamp(0.6rem, 1vw, 0.78rem);
+  letter-spacing: 0.38em;
+  margin-right: -0.38em;
+  color: rgba(255, 255, 255, 0.2);
   text-transform: uppercase;
-  margin-top: 1.4rem;
   opacity: 0;
-  animation: appear 1.5s cubic-bezier(0.16, 1, 0.3, 1) 1.8s forwards;
+  animation: fadein 1.2s ease 1.0s forwards;
 }
 
-@keyframes appear {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+@keyframes fadein {
+  to { opacity: 1; }
 }
